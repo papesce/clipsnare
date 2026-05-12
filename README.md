@@ -1,5 +1,7 @@
+
 <p align="center">
-  <img src="public/banner.svg" alt="ClipSnare banner" width="100%" />
+  
+  <img width="1208" height="916" alt="Screenshot 2026-05-12 at 10 21 56 AM" src="https://github.com/user-attachments/assets/c48879f6-c038-469e-8cb7-5fcaddfe1f1b" />
 </p>
 
 ClipSnare is a simple and powerful tool designed to extract direct MP4 video links from web pages. It provides a clean web interface to scan URLs, preview videos, and easily copy links for use in other applications.
