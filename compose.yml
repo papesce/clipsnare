@@ -1,0 +1,10 @@
+services:
+  clipsnare:
+    build: .
+    container_name: clipsnare
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5173
+    ports:
+      - "5173:5173"

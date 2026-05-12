@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ClipSnare</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="app">
+      <img class="app-banner" src="/banner.svg" alt="ClipSnare — Extract direct MP4 links from any web page" width="1280" height="320">
+      <section class="search-panel" aria-labelledby="title">
+        <div class="brand">
+          <img class="brand-mark" src="/logo.svg" alt="" aria-hidden="true" width="42" height="42">
+          <div>
+            <h1 id="title">ClipSnare</h1>
+            <p>Extract direct MP4 links from a page URL.</p>
+          </div>
+        </div>
+        <form id="extract-form" class="url-form">
+          <div class="input-row">
+            <label class="visually-hidden" for="url-input">Page URL</label>
+            <div class="input-container">
+              <input
+                id="url-input"
+                name="url"
+                type="password"
+                placeholder="Paste a page URL..."
+                autocomplete="off"
+                required
+              >
+              <button id="toggle-input-visibility" type="button" class="input-icon-button" aria-label="Show URL">
+                <svg class="icon-eye-off" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                <svg class="icon-eye" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+            </div>
+            <button id="submit-button" type="submit">Scan</button>
+          </div>
+          <fieldset class="method-group" aria-label="Scan method">
+            <label>
+              <input type="radio" name="method" value="fetch" checked>
+              Fast scan
+            </label>
+            <label>
+              <input type="radio" name="method" value="browser">
+              Deep scan
+            </label>
+          </fieldset>
+          <div class="launch-tools" aria-label="Open from other tabs">
+            <span>Browser shortcut</span>
+            <a id="bookmarklet-link" class="bookmarklet-link" href="#">Send Current Tab</a>
+            <small>Drag this button to your bookmarks bar, then click it from any page.</small>
+          </div>
+        </form>
+      </section>
+
+      <section class="result-panel" aria-live="polite">
+        <div class="result-header">
+          <div>
+            <h2 id="result-title">Results</h2>
+            <p id="result-meta">No URL scanned yet.</p>
+          </div>
+          <div class="result-actions">
+            <label class="quality-filter">
+              <input id="quality-filter" type="checkbox" checked>
+              Hide low-quality or unplayable
+            </label>
+            <button id="copy-all" type="button" disabled>Copy All</button>
+          </div>
+        </div>
+        <div id="message" class="message">Links will appear here after scanning.</div>
+        <div id="links" class="links" hidden></div>
+      </section>
+    </main>
+
+    <template id="link-template">
+      <article class="link-item">
+        <div class="preview-shell">
+          <video class="preview" controls preload="metadata" tabindex="0"></video>
+          <div class="frame-preview" hidden>
+            <canvas width="160" height="90"></canvas>
+            <span></span>
+          </div>
+          <div class="seek-preview" role="slider" aria-label="Video timeline" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" tabindex="0">
+            <div class="seek-track">
+              <div class="seek-fill"></div>
+              <div class="seek-hover"></div>
+            </div>
+          </div>
+        </div>
+        <div class="link-content">
+          <div class="link-topline">
+            <span class="filename"></span>
+            <span class="host"></span>
+          </div>
+          <div class="url-wrapper" hidden>
+            <a class="url" target="_blank" rel="noreferrer"></a>
+          </div>
+          <div class="actions">
+            <button class="toggle-url" type="button">Show Link</button>
+            <button class="copy-one" type="button">Copy</button>
+            <a class="open-one" target="_blank" rel="noreferrer">Open</a>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
