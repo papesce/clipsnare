@@ -125,4 +125,4 @@ The project is built with:
 
 ## License
 
-Private / Internal use.
+[MIT](LICENSE)

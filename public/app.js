@@ -246,12 +246,48 @@ function setupVideoControls(root, video) {
   const time = preview.querySelector("span");
   const ctx = canvas.getContext("2d");
   const thumbnailVideo = document.createElement("video");
+  const pipBtn = root.querySelector(".pip-btn");
+  const fullscreenBtn = root.querySelector(".fullscreen-btn");
   let isDragging = false;
   let pendingPreviewTime = null;
 
   thumbnailVideo.muted = true;
   thumbnailVideo.preload = "metadata";
   thumbnailVideo.playsInline = true;
+
+  if (pipBtn) {
+    if (!document.pictureInPictureEnabled) {
+      pipBtn.hidden = true;
+    } else {
+      pipBtn.addEventListener("click", async () => {
+        if (document.pictureInPictureElement === video) {
+          await document.exitPictureInPicture();
+        } else {
+          await video.requestPictureInPicture();
+        }
+      });
+    }
+  }
+
+  if (fullscreenBtn) {
+    fullscreenBtn.addEventListener("click", () => {
+      if (video.requestFullscreen) {
+        video.requestFullscreen();
+      } else if (video.webkitEnterFullscreen) {
+        video.webkitEnterFullscreen();
+      }
+    });
+  }
+
+  const overlayActions = root.querySelector(".video-overlay-actions");
+  if (overlayActions) {
+    video.addEventListener("timeupdate", () => {
+      overlayActions.hidden = video.currentTime > 0;
+    });
+    video.addEventListener("seeked", () => {
+      overlayActions.hidden = video.currentTime > 0;
+    });
+  }
 
   video.addEventListener("loadedmetadata", () => {
     slider.setAttribute("aria-valuemax", String(Math.floor(video.duration)));

@@ -345,6 +345,36 @@ button:disabled {
   display: block;
 }
 
+.video-overlay-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+  z-index: 3;
+}
+
+.overlay-btn {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  border: 0;
+  border-radius: 6px;
+  min-height: 32px;
+  padding: 0 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.overlay-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.75);
+}
+
 .seek-preview {
   cursor: pointer;
   min-height: 24px;
