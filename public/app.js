@@ -1,4 +1,6 @@
 const form = document.querySelector("#extract-form");
+const app = document.querySelector(".app");
+const bannerToggle = document.querySelector("#banner-toggle");
 const input = document.querySelector("#url-input");
 const toggleInputVisibility = document.querySelector("#toggle-input-visibility");
 const submitButton = document.querySelector("#submit-button");
@@ -17,17 +19,23 @@ const FRAME_STEP_SECONDS = 1 / 30;
 const MIN_VIDEO_HEIGHT = 480;
 updateBookmarkletLink();
 
+bannerToggle.addEventListener("click", () => {
+  const shouldMinimize = !app.classList.contains("banner-minimized");
+  setBannerMinimized(shouldMinimize);
+});
+
 toggleInputVisibility.addEventListener("click", () => {
   const isPassword = input.type === "password";
   input.type = isPassword ? "text" : "password";
-  
+
   const eyeIcon = toggleInputVisibility.querySelector(".icon-eye");
   const eyeOffIcon = toggleInputVisibility.querySelector(".icon-eye-off");
-  
+
   eyeIcon.hidden = !isPassword;
   eyeOffIcon.hidden = isPassword;
   toggleInputVisibility.setAttribute("aria-label", isPassword ? "Hide URL" : "Show URL");
 });
+
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -71,6 +79,7 @@ if (initialUrl) {
 }
 
 async function extractLinks(url, method) {
+  setBannerMinimized(true);
   setLoading(true);
   setMessage(method === "browser" ? "Running deep scan..." : "Running fast scan...", false);
   renderLinks([]);
@@ -126,6 +135,7 @@ function renderLinks(links) {
     const toggleUrl = item.querySelector(".toggle-url");
     const copy = item.querySelector(".copy-one");
     const open = item.querySelector(".open-one");
+    const layoutToggle = item.querySelector(".toggle-layout");
 
     video.src = link.url;
     article.dataset.playable = "unknown";
@@ -151,11 +161,42 @@ function renderLinks(links) {
       }, 1400);
     });
     open.href = link.url;
+    setupLayoutToggle(article, layoutToggle);
 
     linksContainer.append(item);
   }
 
   applyFilters();
+}
+
+function setupLayoutToggle(article, button) {
+  button.addEventListener("click", () => {
+    const isCompact = article.classList.toggle("is-compact");
+    const label = button.querySelector("span");
+    const compactIcon = button.querySelector(".layout-compact-icon");
+    const wideIcon = button.querySelector(".layout-wide-icon");
+
+    button.setAttribute("aria-pressed", String(isCompact));
+    button.setAttribute("aria-label", isCompact ? "Expand video width" : "Collapse video width");
+    label.textContent = isCompact ? "Wide" : "Compact";
+    compactIcon.hidden = isCompact;
+    wideIcon.hidden = !isCompact;
+  });
+}
+
+function setBannerMinimized(isMinimized) {
+  app.classList.toggle("banner-minimized", isMinimized);
+  bannerToggle.setAttribute("aria-expanded", String(!isMinimized));
+  bannerToggle.setAttribute("aria-label", isMinimized ? "Expand banner" : "Collapse banner");
+  const collapseIcon = bannerToggle.querySelector(".banner-collapse-icon");
+  const expandIcon = bannerToggle.querySelector(".banner-expand-icon");
+  if (isMinimized) {
+    collapseIcon.setAttribute("hidden", "");
+    expandIcon.removeAttribute("hidden");
+  } else {
+    expandIcon.setAttribute("hidden", "");
+    collapseIcon.removeAttribute("hidden");
+  }
 }
 
 function setupVideoQualityFilter(item, video) {
@@ -279,15 +320,6 @@ function setupVideoControls(root, video) {
     });
   }
 
-  const overlayActions = root.querySelector(".video-overlay-actions");
-  if (overlayActions) {
-    video.addEventListener("timeupdate", () => {
-      overlayActions.hidden = video.currentTime > 0;
-    });
-    video.addEventListener("seeked", () => {
-      overlayActions.hidden = video.currentTime > 0;
-    });
-  }
 
   video.addEventListener("loadedmetadata", () => {
     slider.setAttribute("aria-valuemax", String(Math.floor(video.duration)));
