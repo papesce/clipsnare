@@ -324,6 +324,15 @@ function setupVideoControls(root, video) {
   video.addEventListener("loadedmetadata", () => {
     slider.setAttribute("aria-valuemax", String(Math.floor(video.duration)));
     updateTimeline(video, fill, slider);
+    // Set aspect ratio to match the video's natural dimensions
+    if (video.videoWidth && video.videoHeight) {
+      video.style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+      // Also set the thumbnail preview canvas aspect ratio and dimensions
+      const canvasAspectRatio = video.videoWidth / video.videoHeight;
+      canvas.width = 160;
+      canvas.height = Math.round(160 / canvasAspectRatio);
+      canvas.style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+    }
   });
 
   video.addEventListener("timeupdate", () => updateTimeline(video, fill, slider));
