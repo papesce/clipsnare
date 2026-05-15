@@ -1,7 +1,8 @@
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
   --bg: #f7f8f6;
   --panel: #ffffff;
+  --field: #ffffff;
   --ink: #161d1b;
   --muted: #66736d;
   --line: #dfe6e1;
@@ -11,7 +12,37 @@
   --accent-soft: #e4f3f0;
   --steel: #26312d;
   --danger: #a53030;
+  --video-bg: #101513;
+  --control-soft: #dce8e4;
+  --control-soft-hover: #c7d9d4;
+  --track: #d8e0dc;
+  --focus-ring: rgba(13, 105, 91, 0.14);
   --shadow: 0 14px 40px rgba(24, 35, 31, 0.08);
+  --item-shadow: 0 8px 20px rgba(24, 35, 31, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101513;
+    --panel: #18211e;
+    --field: #111916;
+    --ink: #edf5f1;
+    --muted: #9baba4;
+    --line: #2d3a35;
+    --soft-line: #34433d;
+    --accent: #2dd4bf;
+    --accent-strong: #5eead4;
+    --accent-soft: #143b36;
+    --steel: #3a4a44;
+    --danger: #f87171;
+    --video-bg: #080b0a;
+    --control-soft: #20352f;
+    --control-soft-hover: #29463e;
+    --track: #35443f;
+    --focus-ring: rgba(45, 212, 191, 0.2);
+    --shadow: 0 16px 44px rgba(0, 0, 0, 0.34);
+    --item-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+  }
 }
 
 * {
@@ -335,6 +366,7 @@ p {
 input {
   min-width: 0;
   width: 100%;
+  background: var(--field);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px 13px;
@@ -344,7 +376,7 @@ input {
 
 input:focus {
   border-color: var(--accent);
-  outline: 3px solid rgba(13, 105, 91, 0.14);
+  outline: 3px solid var(--focus-ring);
 }
 
 button,
@@ -449,8 +481,8 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 16px;
-  background: #fff;
-  box-shadow: 0 8px 20px rgba(24, 35, 31, 0.04);
+  background: var(--panel);
+  box-shadow: var(--item-shadow);
 }
 
 .link-item[hidden] {
@@ -469,7 +501,7 @@ button:disabled {
   max-height: min(66vh, 620px);
   min-height: 280px;
   border-radius: 6px;
-  background: #101513;
+  background: var(--video-bg);
   display: block;
   object-fit: contain;
 }
@@ -519,7 +551,7 @@ button:disabled {
 }
 
 .seek-preview:focus {
-  outline: 3px solid rgba(13, 105, 91, 0.14);
+  outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -528,7 +560,7 @@ button:disabled {
   height: 6px;
   overflow: hidden;
   border-radius: 999px;
-  background: #d8e0dc;
+  background: var(--track);
 }
 
 .seek-fill,
@@ -626,13 +658,13 @@ button:disabled {
 
 .toggle-url,
 .copy-one {
-  background: #dce8e4;
+  background: var(--control-soft);
   color: var(--accent-strong);
 }
 
 .toggle-url:hover,
 .copy-one:hover {
-  background: #c7d9d4;
+  background: var(--control-soft-hover);
 }
 
 .link-item.is-compact {
