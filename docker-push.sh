@@ -11,6 +11,10 @@ else
 fi
 
 DOCKER_USER="papesce"
+
+echo "Incrementing package patch version"
+npm version patch --no-git-tag-version
+
 NAME=$(node -p "require('./package.json').name")
 VERSION=$(node -p "require('./package.json').version")
 IMAGE="${DOCKER_USER}/${NAME}"

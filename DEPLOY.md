@@ -52,7 +52,7 @@ Once the push is complete, you can visit your [Docker Hub profile](https://hub.d
 Anyone (or yourself on another machine) can now run ClipSnare by pulling it directly from Docker Hub:
 
 ```bash
-docker run -p 5173:5173 your-username/clipsnare:latest
+docker run -p 3005:5173 your-username/clipsnare:latest
 ```
 
 ## Automating with GitHub Actions (Optional)
