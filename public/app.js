@@ -166,7 +166,7 @@ function renderLinks(links) {
     const open = item.querySelector(".open-one");
     const layoutToggle = item.querySelector(".toggle-layout");
 
-    video.src = link.url;
+    video.src = link.proxyUrl || link.url;
     article.dataset.playable = "unknown";
     article.dataset.quality = "unknown";
     setupVideoControls(item, video);

@@ -19,6 +19,8 @@ For supported sites (currently Reddit), ClipSnare applies site-specific rules â€
 
 - **Dual Scanning Modes:** Fast Scan for speed, Deep Scan for completeness.
 - **Video Previews:** Preview found videos inline with a custom seek bar and thumbnail previews on hover.
+- **Media Preview Proxy:** Plays extracted MP4s through short-lived local proxy URLs when direct browser playback is blocked, while copy/open actions still use the original URL.
+- **Metadata Extraction:** Finds direct MP4 URLs exposed through standard HTML media tags, Open Graph video metadata, and Schema.org `VideoObject` JSON-LD fields.
 - **Quality Filtering:** Automatically detect and hide low-quality (< 480p) or unplayable links.
 - **Keyboard Shortcuts:**
   - `,` / `.` â€” Step frame-by-frame (previous / next) on the active video.
@@ -75,7 +77,8 @@ npm run dev
 
 ## API
 
-ClipSnare exposes a single endpoint that you can call directly from scripts or other tools:
+ClipSnare exposes a single endpoint that you can call directly from scripts or other tools.
+Extracted MP4 links include a `proxyUrl` when ClipSnare can offer proxied playback. Proxy URLs are short-lived and only work for media URLs returned by a recent scan. To restrict proxied playback to specific hosts, set `PROXY_ALLOWED_HOSTS` to a comma-separated host list.
 
 ```
 GET /api/extract?url=<page-url>&method=fetch|browser
@@ -88,7 +91,12 @@ Response:
   "method": "fetch",
   "count": 2,
   "links": [
-    { "url": "https://cdn.example.com/video.mp4", "host": "cdn.example.com", "filename": "video.mp4" }
+    {
+      "url": "https://cdn.example.com/video.mp4",
+      "proxyUrl": "/api/proxy?id=...",
+      "host": "cdn.example.com",
+      "filename": "video.mp4"
+    }
   ],
   "warnings": []
 }

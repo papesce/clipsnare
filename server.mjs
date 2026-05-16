@@ -1,11 +1,22 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
+import { randomUUID } from "node:crypto";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
 const HOST = process.env.HOST || (process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1");
 const PORT = Number(process.env.PORT || 5173);
 const PUBLIC_DIR = join(process.cwd(), "public");
+const PROXY_TOKEN_TTL_MS = 30 * 60 * 1000;
+const PROXY_ALLOWED_HOSTS = new Set(
+  (process.env.PROXY_ALLOWED_HOSTS || "")
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean)
+);
+const proxyTokens = new Map();
 
 const contentTypes = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -21,6 +32,11 @@ const server = createServer(async (req, res) => {
 
     if (requestUrl.pathname === "/api/extract") {
       await handleExtract(requestUrl, res);
+      return;
+    }
+
+    if (requestUrl.pathname === "/api/proxy") {
+      await handleProxy(requestUrl, req, res);
       return;
     }
 
@@ -68,17 +84,83 @@ async function handleExtract(requestUrl, res) {
     return;
   }
 
+  if (isMp4Url(targetUrl.href)) {
+    const link = addProxyUrl(buildVideoLink(targetUrl.href));
+    sendJson(res, 200, {
+      sourceUrl: targetUrl.href,
+      method,
+      count: 1,
+      links: [link],
+      warnings: []
+    });
+    return;
+  }
+
   const result = method === "browser"
     ? await extractWithBrowser(targetUrl)
     : await extractWithFetch(targetUrl);
 
+  const links = result.links.map(addProxyUrl);
+
   sendJson(res, 200, {
     sourceUrl: targetUrl.href,
     method,
-    count: result.links.length,
-    links: result.links,
-    warnings: result.links.length ? [] : result.errors.slice(0, 4)
+    count: links.length,
+    links,
+    warnings: links.length ? [] : result.errors.slice(0, 4)
   });
+}
+
+async function handleProxy(requestUrl, req, res) {
+  expireProxyTokens();
+
+  const id = requestUrl.searchParams.get("id") || "";
+  const entry = proxyTokens.get(id);
+
+  if (!entry || entry.expiresAt <= Date.now()) {
+    proxyTokens.delete(id);
+    sendJson(res, 404, { error: "That media proxy link has expired. Scan the page again." });
+    return;
+  }
+
+  const targetUrl = parseHttpUrl(entry.url);
+  if (!targetUrl || !isMp4Url(targetUrl.href) || !isProxyHostAllowed(targetUrl)) {
+    sendJson(res, 403, { error: "That media URL is not allowed through the proxy." });
+    return;
+  }
+
+  const headers = {
+    "accept": "video/mp4,video/*;q=0.9,*/*;q=0.8",
+    "user-agent": "clipsnare/1.0 (+http://localhost)"
+  };
+
+  if (req.headers.range) {
+    headers.range = req.headers.range;
+  }
+
+  const response = await fetch(targetUrl.href, {
+    redirect: "follow",
+    headers
+  });
+
+  const responseHeaders = {
+    "cache-control": "no-store",
+    "content-type": response.headers.get("content-type") || "video/mp4"
+  };
+
+  for (const name of ["accept-ranges", "content-length", "content-range"]) {
+    const value = response.headers.get(name);
+    if (value) responseHeaders[name] = value;
+  }
+
+  res.writeHead(response.status, responseHeaders);
+
+  if (req.method === "HEAD" || !response.body) {
+    res.end();
+    return;
+  }
+
+  await pipeline(Readable.fromWeb(response.body), res);
 }
 
 async function extractWithFetch(targetUrl) {
@@ -208,6 +290,60 @@ function parseHttpUrl(value) {
   }
 }
 
+function isMp4Url(value) {
+  try {
+    const url = new URL(value);
+    return url.pathname.toLowerCase().endsWith(".mp4");
+  } catch {
+    return false;
+  }
+}
+
+function buildVideoLink(value) {
+  const url = new URL(value);
+  return {
+    url: url.href,
+    host: url.hostname,
+    filename: filenameFromUrl(url.href)
+  };
+}
+
+function addProxyUrl(link) {
+  if (!isMp4Url(link.url)) return link;
+
+  const targetUrl = parseHttpUrl(link.url);
+  if (!targetUrl || !isProxyHostAllowed(targetUrl)) {
+    return link;
+  }
+
+  expireProxyTokens();
+
+  const id = randomUUID();
+  proxyTokens.set(id, {
+    url: link.url,
+    expiresAt: Date.now() + PROXY_TOKEN_TTL_MS
+  });
+
+  return {
+    ...link,
+    proxyUrl: `/api/proxy?id=${encodeURIComponent(id)}`
+  };
+}
+
+function isProxyHostAllowed(url) {
+  return PROXY_ALLOWED_HOSTS.size === 0 || PROXY_ALLOWED_HOSTS.has(url.hostname.toLowerCase());
+}
+
+function expireProxyTokens() {
+  const now = Date.now();
+
+  for (const [id, entry] of proxyTokens) {
+    if (entry.expiresAt <= now) {
+      proxyTokens.delete(id);
+    }
+  }
+}
+
 const SITE_RULES = [
   {
     name: "Adaptive Format A",
@@ -256,16 +392,13 @@ export function extractMp4Links(body, baseUrl, contentType) {
 
   const text = decodeEntities(sources.join("\n"));
   const directLinks = findDirectMp4Links(text, baseUrl);
+  const metadataLinks = findMetadataMp4Links(text, baseUrl);
   const patternLinks = findPatternLinks(text);
-  const links = [...directLinks, ...patternLinks];
+  const links = [...directLinks, ...metadataLinks, ...patternLinks];
   const unique = new Map();
 
   for (const url of links) {
-    unique.set(url, {
-      url,
-      host: new URL(url).hostname,
-      filename: filenameFromUrl(url)
-    });
+    unique.set(url, buildVideoLink(url));
   }
 
   return [...unique.values()];
@@ -292,6 +425,30 @@ function findDirectMp4Links(text, baseUrl) {
   return [...matches]
     .map((match) => absolutize(match[0].replace(/^\/\//, "https://"), baseUrl))
     .filter(Boolean);
+}
+
+function findMetadataMp4Links(text, baseUrl) {
+  const collected = new Set();
+  const htmlAttributeMatches = text.matchAll(/<(?:video|source|meta|link)\b[^>]*\b(?:src|href|content)\s*=\s*(?:"([^"]+?\.mp4(?:\?[^"]*)?)"|'([^']+?\.mp4(?:\?[^']*)?)'|([^\s"'<>`]+?\.mp4(?:\?[^\s"'<>`]*)?))[^>]*>/gi);
+  const jsonLdMatches = text.matchAll(/"(?:contentUrl|embedUrl|url)"\s*:\s*"([^"]+?\.mp4(?:\?[^"]*)?)"/gi);
+
+  for (const match of htmlAttributeMatches) {
+    addMp4Reference(collected, match[1] || match[2] || match[3], baseUrl);
+  }
+
+  for (const match of jsonLdMatches) {
+    addMp4Reference(collected, match[1], baseUrl);
+  }
+
+  return [...collected];
+}
+
+function addMp4Reference(collected, value, baseUrl) {
+  const cleaned = value.trim().replace(/^\/\//, "https://");
+  const absoluteUrl = absolutize(cleaned, baseUrl);
+  if (absoluteUrl && isMp4Url(absoluteUrl)) {
+    collected.add(absoluteUrl);
+  }
 }
 
 function findPatternLinks(text) {
