@@ -296,7 +296,7 @@ p {
 
 .input-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 8px;
 }
 
@@ -406,6 +406,31 @@ button:hover,
 button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+#submit-button.is-deep-scanning::before {
+  animation: spin 0.75s linear infinite;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  content: "";
+  height: 14px;
+  margin-right: 8px;
+  width: 14px;
+}
+
+.cancel-button {
+  background: var(--steel);
+}
+
+.cancel-button:hover {
+  background: var(--ink);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .result-panel {

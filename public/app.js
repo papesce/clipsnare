@@ -4,6 +4,7 @@ const bannerToggle = document.querySelector("#banner-toggle");
 const input = document.querySelector("#url-input");
 const toggleInputVisibility = document.querySelector("#toggle-input-visibility");
 const submitButton = document.querySelector("#submit-button");
+const cancelButton = document.querySelector("#cancel-button");
 const copyAllButton = document.querySelector("#copy-all");
 const bookmarkletLink = document.querySelector("#bookmarklet-link");
 const qualityFilter = document.querySelector("#quality-filter");
@@ -14,6 +15,7 @@ const template = document.querySelector("#link-template");
 
 let currentLinks = [];
 let activeVideo = null;
+let activeScanController = null;
 let lastResultText = "No URL scanned yet.";
 const FRAME_STEP_SECONDS = 1 / 30;
 const MIN_VIDEO_HEIGHT = 480;
@@ -62,6 +64,10 @@ copyAllButton.addEventListener("click", async () => {
   }, 1400);
 });
 
+cancelButton.addEventListener("click", () => {
+  activeScanController?.abort();
+});
+
 qualityFilter.addEventListener("change", applyFilters);
 
 const initialParams = new URLSearchParams(window.location.search);
@@ -79,15 +85,23 @@ if (initialUrl) {
 }
 
 async function extractLinks(url, method) {
-  setBannerMinimized(true);
-  setLoading(true);
+  activeScanController?.abort();
+  const scanController = new AbortController();
+  activeScanController = scanController;
+  setBannerMinimized(false);
+  setLoading(true, method);
   setMessage(method === "browser" ? "Running deep scan..." : "Running fast scan...", false);
   renderLinks([]);
 
   try {
     const params = new URLSearchParams({ url, method });
-    const response = await fetch(`/api/extract?${params.toString()}`);
+    const response = await fetch(`/api/extract?${params.toString()}`, {
+      signal: scanController.signal,
+    });
     const payload = await response.json();
+    if (activeScanController !== scanController) {
+      return;
+    }
 
     if (!response.ok) {
       throw new Error(payload.error || "Could not scan that URL.");
@@ -104,17 +118,32 @@ async function extractLinks(url, method) {
       const warning = payload.warnings?.[0] ? ` ${payload.warnings[0]}` : "";
       const suggestion = method === "fetch" ? " Try Deep scan for pages that load video dynamically." : "";
       setMessage(`No direct MP4 links were found.${suggestion}${warning}`, true);
+      setBannerMinimized(false);
       return;
     }
 
     setMessage("", false);
     renderLinks(currentLinks);
+    setBannerMinimized(true);
   } catch (error) {
+    if (activeScanController !== scanController) {
+      return;
+    }
+
     currentLinks = [];
-    resultMeta.textContent = "Scan failed.";
-    setMessage(error instanceof Error ? error.message : "Could not scan that URL.", true);
+    if (error instanceof DOMException && error.name === "AbortError") {
+      resultMeta.textContent = "Scan canceled.";
+      setMessage("Scan canceled.", false);
+    } else {
+      resultMeta.textContent = "Scan failed.";
+      setMessage(error instanceof Error ? error.message : "Could not scan that URL.", true);
+    }
+    setBannerMinimized(false);
   } finally {
-    setLoading(false);
+    if (activeScanController === scanController) {
+      activeScanController = null;
+      setLoading(false);
+    }
   }
 }
 
@@ -529,9 +558,14 @@ function formatTime(seconds) {
   return `${minutes}:${remainingSeconds}`;
 }
 
-function setLoading(isLoading) {
+function setLoading(isLoading, method) {
   submitButton.disabled = isLoading;
-  submitButton.textContent = isLoading ? "Scanning..." : "Scan";
+  submitButton.textContent = isLoading
+    ? method === "browser" ? "Deep scanning..." : "Scanning..."
+    : "Scan";
+  submitButton.classList.toggle("is-deep-scanning", isLoading && method === "browser");
+  submitButton.setAttribute("aria-busy", String(isLoading));
+  cancelButton.hidden = !isLoading;
 }
 
 function setMessage(text, isError) {
