@@ -63,6 +63,11 @@ npm start
 ```
 The application will be available at `http://localhost:5173`.
 
+For development, start the server in watch mode so it restarts when source files change:
+```bash
+npm run dev
+```
+
 ### Environment Variables
 
 - `PORT`: The port the server listens on (default: `5173`).
