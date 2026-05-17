@@ -13,13 +13,12 @@ ClipSnare offers two scanning modes:
 - **Fast Scan** — Fetches the raw HTML/JSON of a page via HTTP and extracts `.mp4` URLs from the source. Fast, but misses videos loaded dynamically by JavaScript.
 - **Deep Scan** — Launches a headless Chromium browser via Playwright, renders the page fully, and intercepts network requests to capture video URLs that only appear at runtime.
 
-For supported sites (currently Reddit), ClipSnare applies site-specific rules — for example, converting Reddit post URLs to their JSON API endpoint and extracting `v.redd.it` DASH video links automatically.
+For supported sites (currently Reddit), ClipSnare applies site-specific rules — for example, converting Reddit post URLs to their JSON API endpoint and extracting playable `v.redd.it` video links automatically.
 
 ## Features
 
 - **Dual Scanning Modes:** Fast Scan for speed, Deep Scan for completeness.
 - **Video Previews:** Preview found videos inline with a custom seek bar and thumbnail previews on hover.
-- **Media Preview Proxy:** Plays extracted MP4s through short-lived local proxy URLs when direct browser playback is blocked, while copy/open actions still use the original URL.
 - **Metadata Extraction:** Finds direct MP4 URLs exposed through standard HTML media tags, Open Graph video metadata, and Schema.org `VideoObject` JSON-LD fields.
 - **Quality Filtering:** Automatically detect and hide low-quality (< 480p) or unplayable links.
 - **Keyboard Shortcuts:**
@@ -28,7 +27,7 @@ For supported sites (currently Reddit), ClipSnare applies site-specific rules �
 - **URL Privacy:** The URL input is masked by default (password field) with a toggle to show/hide — useful when sharing your screen.
 - **Shareable Scans:** The address bar updates with `?url=...&method=...` so you can bookmark or share a scan URL directly.
 - **Batch Actions:** Copy all visible links to your clipboard with a single click.
-- **Reddit Support:** Automatically handles Reddit's DASH video format by fetching the JSON API and resolving `v.redd.it` links.
+- **Reddit Support:** Automatically handles Reddit video posts by fetching the JSON API and resolving `v.redd.it` links.
 - **Bookmarklet:** Drag the "Send Current Tab" link from the UI to your bookmarks bar. Click it on any page to open ClipSnare with that page pre-filled.
 - **Docker Ready:** Includes a `Dockerfile` and `compose.yml` for easy deployment.
 
@@ -74,12 +73,10 @@ npm run dev
 
 - `PORT`: The port the server listens on (default: `5173`).
 - `HOST`: The host interface to bind to (default: `127.0.0.1`, or `0.0.0.0` in production).
-- `PROXY_TOKEN_TTL_MS`: How long each media proxy URL remains valid after its last request (default: `21600000`, or 6 hours).
 
 ## API
 
 ClipSnare exposes a single endpoint that you can call directly from scripts or other tools.
-Extracted MP4 links include a `proxyUrl` when ClipSnare can offer proxied playback. Proxy URLs are short-lived, refresh while in use, and only work for media URLs returned by a recent scan. To restrict proxied playback to specific hosts, set `PROXY_ALLOWED_HOSTS` to a comma-separated host list.
 
 ```
 GET /api/extract?url=<page-url>&method=fetch|browser
@@ -94,7 +91,6 @@ Response:
   "links": [
     {
       "url": "https://cdn.example.com/video.mp4",
-      "proxyUrl": "/api/proxy?id=...",
       "host": "cdn.example.com",
       "filename": "video.mp4"
     }
@@ -113,6 +109,14 @@ The Docker image is based on `mcr.microsoft.com/playwright`, which includes Chro
 docker compose up -d
 ```
 This will build the image and start the container on port `5173`.
+
+For production deployments that should pull the published Docker Hub image instead of building locally, use:
+
+```bash
+docker compose -f compose.prod.yml up -d
+```
+
+`compose.prod.yml` is pinned to the Docker image version from `package.json`; `docker-push.sh` updates that tag when it increments and publishes a new patch version.
 
 ### Manual Docker Build
 

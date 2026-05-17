@@ -166,8 +166,7 @@ function renderLinks(links) {
     const open = item.querySelector(".open-one");
     const layoutToggle = item.querySelector(".toggle-layout");
 
-    video.src = link.proxyUrl || link.url;
-    setupProxyFallback(video, link);
+    video.src = link.url;
     article.dataset.playable = "unknown";
     article.dataset.quality = "unknown";
     setupVideoControls(item, video);
@@ -211,22 +210,6 @@ function setupLayoutToggle(article, button) {
     label.textContent = isCompact ? "Wide" : "Compact";
     compactIcon.hidden = isCompact;
     wideIcon.hidden = !isCompact;
-  });
-}
-
-function setupProxyFallback(video, link) {
-  if (!link.proxyUrl || !link.url) return;
-
-  let retriedDirectUrl = false;
-
-  video.addEventListener("error", () => {
-    if (retriedDirectUrl || video.currentSrc === link.url || video.src === link.url) {
-      return;
-    }
-
-    retriedDirectUrl = true;
-    video.src = link.url;
-    video.load();
   });
 }
 

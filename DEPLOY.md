@@ -55,6 +55,14 @@ Anyone (or yourself on another machine) can now run ClipSnare by pulling it dire
 docker run -p 3005:5173 your-username/clipsnare:latest
 ```
 
+Or use the production compose file, which is pinned to the published version:
+
+```bash
+docker compose -f compose.prod.yml up -d
+```
+
+The `docker-push.sh` script increments the package patch version, builds and pushes `papesce/clipsnare:<version>` plus `papesce/clipsnare:latest`, and updates `compose.prod.yml` to the same versioned image tag.
+
 ## Automating with GitHub Actions (Optional)
 
 For more advanced setups, you can create a `.github/workflows/docker-publish.yml` file to automatically push to Docker Hub whenever you push code to your `main` branch.
