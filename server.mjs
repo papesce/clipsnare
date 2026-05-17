@@ -85,12 +85,15 @@ async function handleExtract(requestUrl, res) {
   }
 
   if (isMp4Url(targetUrl.href)) {
-    const link = addProxyUrl(buildVideoLink(targetUrl.href));
+    const directLink = buildVideoLink(targetUrl.href);
+    const links = targetUrl.hostname.toLowerCase() === "v.redd.it"
+      ? await expandRedditVideoLinks([directLink], targetUrl.href)
+      : [directLink];
     sendJson(res, 200, {
       sourceUrl: targetUrl.href,
       method,
-      count: 1,
-      links: [link],
+      count: links.length,
+      links: links.map(addProxyUrl),
       warnings: []
     });
     return;
@@ -198,8 +201,10 @@ async function extractWithFetch(targetUrl) {
     }
   }
 
+  const links = await expandRedditVideoLinks([...collected.values()], targetUrl.href);
+
   return {
-    links: [...collected.values()],
+    links,
     errors
   };
 }
@@ -263,8 +268,10 @@ async function extractWithBrowser(targetUrl) {
     await browser.close();
   }
 
+  const links = await expandRedditVideoLinks([...collected.values()], targetUrl.href);
+
   return {
-    links: [...collected.values()],
+    links,
     errors
   };
 }
@@ -361,7 +368,7 @@ const SITE_RULES = [
     extractPatterns: [
       {
         regex: /https?:\/\/v\.redd\.it\/([a-z0-9]+)(?:\/[^\s"'<>\\]*)?/gi,
-        template: (match) => `https://v.redd.it/${match[1]}/DASH_720.mp4`
+        template: (match) => `https://v.redd.it/${match[1]}/CMAF_720.mp4`
       }
     ]
   }
@@ -451,6 +458,123 @@ function addMp4Reference(collected, value, baseUrl) {
   if (absoluteUrl && isMp4Url(absoluteUrl)) {
     collected.add(absoluteUrl);
   }
+}
+
+async function expandRedditVideoLinks(links, refererUrl) {
+  const manifestCache = new Map();
+  const collected = new Map();
+
+  for (const link of links) {
+    const manifestUrl = redditManifestUrlFromVideoUrl(link.url);
+
+    if (!manifestUrl) {
+      collected.set(link.url, link);
+      continue;
+    }
+
+    const manifestLinks = await fetchRedditManifestLinks(manifestUrl, refererUrl, manifestCache);
+
+    if (manifestLinks.length) {
+      for (const manifestLink of manifestLinks) {
+        collected.set(manifestLink.url, manifestLink);
+      }
+      continue;
+    }
+
+    collected.set(link.url, link);
+  }
+
+  return [...collected.values()];
+}
+
+async function fetchRedditManifestLinks(manifestUrl, refererUrl, manifestCache) {
+  if (manifestCache.has(manifestUrl)) {
+    return manifestCache.get(manifestUrl);
+  }
+
+  const promise = (async () => {
+    try {
+      const response = await fetch(manifestUrl, {
+        redirect: "follow",
+        headers: {
+          "accept": "application/dash+xml,application/xml,text/xml;q=0.9,*/*;q=0.8",
+          "accept-language": "en-US,en;q=0.8",
+          "referer": refererUrl,
+          "user-agent": "clipsnare/1.0 (+http://localhost)"
+        }
+      });
+
+      if (!response.ok) {
+        return [];
+      }
+
+      return extractRedditManifestLinks(
+        await response.text(),
+        response.url,
+        response.headers.get("content-type") || ""
+      );
+    } catch {
+      return [];
+    }
+  })();
+
+  manifestCache.set(manifestUrl, promise);
+  return promise;
+}
+
+function extractRedditManifestLinks(body, baseUrl, contentType) {
+  const links = extractMp4Links(body, baseUrl, contentType)
+    .filter((link) => isRedditRenditionLink(link.url));
+  const byResolution = new Map();
+
+  for (const link of links) {
+    const resolution = redditRenditionScore(link.url);
+    const existing = byResolution.get(resolution);
+
+    if (!existing || (isCmafRendition(link.url) && !isCmafRendition(existing.url))) {
+      byResolution.set(resolution, link);
+    }
+  }
+
+  return [...byResolution.values()].sort((a, b) => redditRenditionScore(b.url) - redditRenditionScore(a.url));
+}
+
+function redditManifestUrlFromVideoUrl(value) {
+  try {
+    const url = new URL(value);
+
+    if (url.hostname.toLowerCase() !== "v.redd.it") {
+      return null;
+    }
+
+    const match = url.pathname.match(/^\/([a-z0-9]+)(?:\/(?:DASH|CMAF)_[^/]+\.mp4|\/DASHPlaylist\.mpd)?\/?$/i);
+
+    if (!match) {
+      return null;
+    }
+
+    return `https://v.redd.it/${match[1]}/DASHPlaylist.mpd`;
+  } catch {
+    return null;
+  }
+}
+
+function isRedditRenditionLink(value) {
+  try {
+    const url = new URL(value);
+    return url.hostname.toLowerCase() === "v.redd.it" && /\/(?:DASH|CMAF)_(\d+)\.mp4$/i.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function redditRenditionScore(value) {
+  const match = value.match(/\/(?:DASH|CMAF)_(\d+)\.mp4$/i);
+  return match ? Number(match[1]) : -1;
+}
+
+function isCmafRendition(value) {
+  return /\/CMAF_(\d+)\.mp4$/i.test(value);
 }
 
 function findPatternLinks(text) {

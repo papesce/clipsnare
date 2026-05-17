@@ -13,7 +13,7 @@ ClipSnare offers two scanning modes:
 - **Fast Scan** — Fetches the raw HTML/JSON of a page via HTTP and extracts `.mp4` URLs from the source. Fast, but misses videos loaded dynamically by JavaScript.
 - **Deep Scan** — Launches a headless Chromium browser via Playwright, renders the page fully, and intercepts network requests to capture video URLs that only appear at runtime.
 
-For supported sites (currently Reddit), ClipSnare applies site-specific rules — for example, converting Reddit post URLs to their JSON API endpoint and extracting `v.redd.it` DASH video links automatically.
+For supported sites (currently Reddit), ClipSnare applies site-specific rules — for example, converting Reddit post URLs to their JSON API endpoint and extracting playable `v.redd.it` video links automatically.
 
 ## Features
 
@@ -28,7 +28,7 @@ For supported sites (currently Reddit), ClipSnare applies site-specific rules �
 - **URL Privacy:** The URL input is masked by default (password field) with a toggle to show/hide — useful when sharing your screen.
 - **Shareable Scans:** The address bar updates with `?url=...&method=...` so you can bookmark or share a scan URL directly.
 - **Batch Actions:** Copy all visible links to your clipboard with a single click.
-- **Reddit Support:** Automatically handles Reddit's DASH video format by fetching the JSON API and resolving `v.redd.it` links.
+- **Reddit Support:** Automatically handles Reddit video posts by fetching the JSON API and resolving `v.redd.it` links.
 - **Bookmarklet:** Drag the "Send Current Tab" link from the UI to your bookmarks bar. Click it on any page to open ClipSnare with that page pre-filled.
 - **Docker Ready:** Includes a `Dockerfile` and `compose.yml` for easy deployment.
 
