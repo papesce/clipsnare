@@ -114,6 +114,14 @@ docker compose up -d
 ```
 This will build the image and start the container on port `5173`.
 
+For production deployments that should pull the published Docker Hub image instead of building locally, use:
+
+```bash
+docker compose -f compose.prod.yml up -d
+```
+
+`compose.prod.yml` is pinned to the Docker image version from `package.json`; `docker-push.sh` updates that tag when it increments and publishes a new patch version.
+
 ### Manual Docker Build
 
 1.  **Build the image:**

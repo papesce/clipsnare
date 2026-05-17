@@ -1,0 +1,11 @@
+services:
+  clipsnare:
+    image: papesce/clipsnare:1.0.8
+    container_name: clipsnare
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5173
+      HOST: 0.0.0.0
+    ports:
+      - "3005:5173"
