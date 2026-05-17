@@ -1,6 +1,6 @@
 services:
   clipsnare:
-    image: papesce/clipsnare:1.0.8
+    image: papesce/clipsnare:latest
     container_name: clipsnare
     restart: unless-stopped
     environment:
