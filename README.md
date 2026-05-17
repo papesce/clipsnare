@@ -74,11 +74,12 @@ npm run dev
 
 - `PORT`: The port the server listens on (default: `5173`).
 - `HOST`: The host interface to bind to (default: `127.0.0.1`, or `0.0.0.0` in production).
+- `PROXY_TOKEN_TTL_MS`: How long each media proxy URL remains valid after its last request (default: `21600000`, or 6 hours).
 
 ## API
 
 ClipSnare exposes a single endpoint that you can call directly from scripts or other tools.
-Extracted MP4 links include a `proxyUrl` when ClipSnare can offer proxied playback. Proxy URLs are short-lived and only work for media URLs returned by a recent scan. To restrict proxied playback to specific hosts, set `PROXY_ALLOWED_HOSTS` to a comma-separated host list.
+Extracted MP4 links include a `proxyUrl` when ClipSnare can offer proxied playback. Proxy URLs are short-lived, refresh while in use, and only work for media URLs returned by a recent scan. To restrict proxied playback to specific hosts, set `PROXY_ALLOWED_HOSTS` to a comma-separated host list.
 
 ```
 GET /api/extract?url=<page-url>&method=fetch|browser

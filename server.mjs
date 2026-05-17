@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const HOST = process.env.HOST || (process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1");
 const PORT = Number(process.env.PORT || 5173);
 const PUBLIC_DIR = join(process.cwd(), "public");
-const PROXY_TOKEN_TTL_MS = 30 * 60 * 1000;
+const PROXY_TOKEN_TTL_MS = Number(process.env.PROXY_TOKEN_TTL_MS || 6 * 60 * 60 * 1000);
 const PROXY_ALLOWED_HOSTS = new Set(
   (process.env.PROXY_ALLOWED_HOSTS || "")
     .split(",")
@@ -122,6 +122,8 @@ async function handleProxy(requestUrl, req, res) {
     sendJson(res, 404, { error: "That media proxy link has expired. Scan the page again." });
     return;
   }
+
+  entry.expiresAt = Date.now() + PROXY_TOKEN_TTL_MS;
 
   const targetUrl = parseHttpUrl(entry.url);
   if (!targetUrl || !isMp4Url(targetUrl.href) || !isProxyHostAllowed(targetUrl)) {
