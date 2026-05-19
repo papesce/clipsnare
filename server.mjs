@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
+import { findProvider } from "./providers/index.mjs";
 
 const HOST = process.env.HOST || (process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1");
 const PORT = Number(process.env.PORT || 5173);
@@ -73,9 +74,11 @@ async function handleExtract(requestUrl, res) {
 
   if (isMp4Url(targetUrl.href)) {
     const directLink = buildVideoLink(targetUrl.href);
-    const links = targetUrl.hostname.toLowerCase() === "v.redd.it"
-      ? await expandRedditVideoLinks([directLink], targetUrl.href)
+    const provider = findProvider(targetUrl);
+    const links = provider?.afterExtract
+      ? await provider.afterExtract([directLink], targetUrl.href)
       : [directLink];
+
     sendJson(res, 200, {
       sourceUrl: targetUrl.href,
       method,
@@ -90,7 +93,10 @@ async function handleExtract(requestUrl, res) {
     ? await extractWithBrowser(targetUrl)
     : await extractWithFetch(targetUrl);
 
-  const links = result.links;
+  const provider = findProvider(targetUrl);
+  const links = provider?.afterExtract
+    ? await provider.afterExtract(result.links, targetUrl.href)
+    : result.links;
 
   sendJson(res, 200, {
     sourceUrl: targetUrl.href,
@@ -110,11 +116,7 @@ async function extractWithFetch(targetUrl) {
     try {
       const response = await fetch(candidate, {
         redirect: "follow",
-        headers: {
-          "accept": "text/html,application/json;q=0.9,*/*;q=0.8",
-          "accept-language": "en-US,en;q=0.8",
-          "user-agent": "clipsnare/1.0 (+http://localhost)"
-        }
+        headers: getRequestHeaders(candidate, targetUrl.href)
       });
 
       if (!response.ok) {
@@ -134,10 +136,8 @@ async function extractWithFetch(targetUrl) {
     }
   }
 
-  const links = await expandRedditVideoLinks([...collected.values()], targetUrl.href);
-
   return {
-    links,
+    links: [...collected.values()],
     errors
   };
 }
@@ -201,10 +201,8 @@ async function extractWithBrowser(targetUrl) {
     await browser.close();
   }
 
-  const links = await expandRedditVideoLinks([...collected.values()], targetUrl.href);
-
   return {
-    links,
+    links: [...collected.values()],
     errors
   };
 }
@@ -250,33 +248,14 @@ function buildVideoLink(value) {
   };
 }
 
-const SITE_RULES = [
-  {
-    name: "Adaptive Format A",
-    host: /(^|\.)reddit\.com$/i,
-    transformUrl: (url) => {
-      const next = new URL(url.href);
-      next.searchParams.set("raw_json", "1");
-      if (!next.pathname.endsWith(".json")) {
-        next.pathname = next.pathname.replace(/\/?$/, ".json");
-      }
-      return next.href;
-    },
-    extractPatterns: [
-      {
-        regex: /https?:\/\/v\.redd\.it\/([a-z0-9]+)(?:\/[^\s"'<>\\]*)?/gi,
-        template: (match) => `https://v.redd.it/${match[1]}/CMAF_720.mp4`
-      }
-    ]
-  }
-];
-
 function buildCandidateUrls(targetUrl) {
   const urls = [targetUrl.href];
+  const provider = findProvider(targetUrl);
 
-  for (const rule of SITE_RULES) {
-    if (rule.host.test(targetUrl.hostname) && rule.transformUrl) {
-      urls.unshift(rule.transformUrl(targetUrl));
+  if (provider?.transformUrl) {
+    const transformed = provider.transformUrl(targetUrl);
+    if (transformed) {
+      urls.unshift(transformed);
     }
   }
 
@@ -299,7 +278,7 @@ export function extractMp4Links(body, baseUrl, contentType) {
   const text = decodeEntities(sources.join("\n"));
   const directLinks = findDirectMp4Links(text, baseUrl);
   const metadataLinks = findMetadataMp4Links(text, baseUrl);
-  const patternLinks = findPatternLinks(text);
+  const patternLinks = findPatternLinks(text, baseUrl);
   const links = [...directLinks, ...metadataLinks, ...patternLinks];
   const unique = new Map();
 
@@ -357,122 +336,14 @@ function addMp4Reference(collected, value, baseUrl) {
   }
 }
 
-async function expandRedditVideoLinks(links, refererUrl) {
-  const collected = new Map();
-
-  for (const link of links) {
-    const manifestUrl = redditManifestUrlFromVideoUrl(link.url);
-
-    if (!manifestUrl) {
-      collected.set(link.url, link);
-      continue;
-    }
-
-    const manifestLinks = await fetchRedditManifestLinks(manifestUrl, refererUrl);
-
-    if (manifestLinks.length) {
-      for (const manifestLink of manifestLinks) {
-        collected.set(manifestLink.url, manifestLink);
-      }
-      continue;
-    }
-
-    collected.set(link.url, link);
-  }
-
-  return [...collected.values()];
-}
-
-async function fetchRedditManifestLinks(manifestUrl, refererUrl) {
-  try {
-    const response = await fetch(manifestUrl, {
-      redirect: "follow",
-      headers: {
-        "accept": "application/dash+xml,application/xml,text/xml;q=0.9,*/*;q=0.8",
-        "accept-language": "en-US,en;q=0.8",
-        "referer": refererUrl,
-        "user-agent": "clipsnare/1.0 (+http://localhost)"
-      }
-    });
-
-    if (!response.ok) {
-      return [];
-    }
-
-    return extractRedditManifestLinks(
-      await response.text(),
-      response.url,
-      response.headers.get("content-type") || ""
-    );
-  } catch {
-    return [];
-  }
-}
-
-function extractRedditManifestLinks(body, baseUrl, contentType) {
-  const links = extractMp4Links(body, baseUrl, contentType)
-    .filter((link) => isRedditRenditionLink(link.url));
-  const byResolution = new Map();
-
-  for (const link of links) {
-    const resolution = redditRenditionScore(link.url);
-    const existing = byResolution.get(resolution);
-
-    if (!existing || (isCmafRendition(link.url) && !isCmafRendition(existing.url))) {
-      byResolution.set(resolution, link);
-    }
-  }
-
-  return [...byResolution.values()].sort((a, b) => redditRenditionScore(b.url) - redditRenditionScore(a.url));
-}
-
-function redditManifestUrlFromVideoUrl(value) {
-  try {
-    const url = new URL(value);
-
-    if (url.hostname.toLowerCase() !== "v.redd.it") {
-      return null;
-    }
-
-    const match = url.pathname.match(/^\/([a-z0-9]+)(?:\/(?:DASH|CMAF)_[^/]+\.mp4|\/DASHPlaylist\.mpd)?\/?$/i);
-
-    if (!match) {
-      return null;
-    }
-
-    return `https://v.redd.it/${match[1]}/DASHPlaylist.mpd`;
-  } catch {
-    return null;
-  }
-}
-
-function isRedditRenditionLink(value) {
-  try {
-    const url = new URL(value);
-    return url.hostname.toLowerCase() === "v.redd.it" && /\/(?:DASH|CMAF)_(\d+)\.mp4$/i.test(url.pathname);
-  } catch {
-    return false;
-  }
-}
-
-function redditRenditionScore(value) {
-  const match = value.match(/\/(?:DASH|CMAF)_(\d+)\.mp4$/i);
-  return match ? Number(match[1]) : -1;
-}
-
-function isCmafRendition(value) {
-  return /\/CMAF_(\d+)\.mp4$/i.test(value);
-}
-
-function findPatternLinks(text) {
+function findPatternLinks(text, baseUrl) {
   const collected = new Set();
+  const provider = findProvider(new URL(baseUrl));
 
-  for (const rule of SITE_RULES) {
-    for (const pattern of rule.extractPatterns || []) {
-      const matches = text.matchAll(pattern.regex);
-      for (const match of matches) {
-        collected.add(pattern.template(match));
-      }
+  for (const pattern of provider?.extractPatterns || []) {
+    const matches = text.matchAll(pattern.regex);
+    for (const match of matches) {
+      collected.add(pattern.template(match));
     }
   }
 
@@ -500,6 +371,23 @@ function decodeEntities(value) {
     .replaceAll("\\u0026", "&")
     .replaceAll("\\u003D", "=")
     .replaceAll("\\u003F", "?");
+}
+
+function getRequestHeaders(targetUrl, refererUrl) {
+  const url = new URL(targetUrl);
+  const headers = {
+    "accept": "*/*",
+    "accept-language": "en-US,en;q=0.8",
+    "referer": refererUrl,
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+  };
+
+  const provider = findProvider(url);
+  if (provider?.getHeaders) {
+    Object.assign(headers, provider.getHeaders(url, refererUrl));
+  }
+
+  return headers;
 }
 
 function sendJson(res, status, payload) {
