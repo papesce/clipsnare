@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug Server",
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${workspaceFolder}/server.mjs",
+      "env": {
+        "PORT": "5173",
+        "NODE_ENV": "development"
+      }
+    }
+  ]
+}
