@@ -133,6 +133,11 @@ input {
   white-space: nowrap;
 }
 
+.compact-banner .app-version {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.6);
+}
+
 .banner-bookmarklet-group {
   position: absolute;
   top: 12px;
@@ -251,6 +256,18 @@ h1 {
   font-size: 1.45rem;
   line-height: 1;
   letter-spacing: 0;
+}
+
+.app-version {
+  background: var(--soft-line);
+  border-radius: 4px;
+  color: var(--muted);
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-left: 6px;
+  padding: 2px 5px;
+  vertical-align: middle;
 }
 
 h2 {

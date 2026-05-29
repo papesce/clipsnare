@@ -11,6 +11,9 @@ const HOST = process.env.HOST || (process.env.NODE_ENV === "production" ? "0.0.0
 const PORT = Number(process.env.PORT || 5173);
 const PUBLIC_DIR = join(process.cwd(), "public");
 
+const pkg = JSON.parse(await readFile(join(process.cwd(), "package.json"), "utf8"));
+const APP_VERSION = process.env.APP_VERSION || pkg.version;
+
 const contentTypes = new Map([
   [".html", "text/html; charset=utf-8"],
   [".css", "text/css; charset=utf-8"],
@@ -23,8 +26,18 @@ const server = createServer(async (req, res) => {
   try {
     const requestUrl = new URL(req.url || "/", `http://${req.headers.host}`);
 
+    if (requestUrl.pathname === "/api/version") {
+      sendJson(res, 200, { version: APP_VERSION });
+      return;
+    }
+
     if (requestUrl.pathname === "/api/extract") {
       await handleExtract(requestUrl, res);
+      return;
+    }
+
+    if (requestUrl.pathname === "/api/proxy") {
+      await handleProxy(req, res);
       return;
     }
 
@@ -111,8 +124,13 @@ async function extractWithFetch(targetUrl) {
   const candidates = buildCandidateUrls(targetUrl);
   const collected = new Map();
   const errors = [];
+  const scanned = new Set();
 
-  for (const candidate of candidates) {
+  while (candidates.length > 0) {
+    const candidate = candidates.shift();
+    if (scanned.has(candidate)) continue;
+    scanned.add(candidate);
+
     try {
       const response = await fetch(candidate, {
         redirect: "follow",
@@ -130,6 +148,15 @@ async function extractWithFetch(targetUrl) {
 
       for (const link of links) {
         collected.set(link.url, link);
+      }
+
+      if (scanned.size < 10) { // Limit recursion
+        const iframeUrls = findIframeUrls(body, response.url);
+        for (const iframeUrl of iframeUrls) {
+          if (!scanned.has(iframeUrl) && findProvider(new URL(iframeUrl))) {
+            candidates.push(iframeUrl);
+          }
+        }
       }
     } catch (error) {
       errors.push(`${candidate}: ${error instanceof Error ? error.message : "fetch failed"}`);
@@ -218,6 +245,73 @@ async function waitForSettledPage(page) {
 function addLinks(collected, links) {
   for (const link of links) {
     collected.set(link.url, link);
+  }
+}
+
+function findIframeUrls(text, baseUrl) {
+  const decoded = decodeEntities(text);
+  const matches = decoded.matchAll(/<iframe\b[^>]*?\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s"'<>`]+))[^>]*>/gi);
+  return [...matches]
+    .map((match) => absolutize(match[1] || match[2] || match[3], baseUrl))
+    .filter(Boolean);
+}
+
+async function handleProxy(req, res) {
+  const requestUrl = new URL(req.url || "/", `http://${req.headers.host}`);
+  const targetUrlStr = requestUrl.searchParams.get("url");
+  const download = requestUrl.searchParams.get("download") === "1";
+  const filename = requestUrl.searchParams.get("filename") || "video.mp4";
+
+  if (!targetUrlStr) {
+    sendJson(res, 400, { error: "Missing url parameter" });
+    return;
+  }
+
+  try {
+    const targetUrl = new URL(targetUrlStr);
+    const headers = getRequestHeaders(targetUrl.href, targetUrl.href);
+
+    // Forward range header if present
+    if (req.headers.range) {
+      headers.range = req.headers.range;
+    }
+
+    const response = await fetch(targetUrl.href, {
+      headers,
+      redirect: "follow"
+    });
+
+    if (!response.ok && response.status !== 206) {
+      sendText(res, response.status, `Failed to fetch video: ${response.statusText}`);
+      return;
+    }
+
+    const resHeaders = {
+      "content-type": response.headers.get("content-type") || "video/mp4",
+      "accept-ranges": "bytes",
+      "cache-control": "public, max-age=3600"
+    };
+
+    const contentLength = response.headers.get("content-length");
+    if (contentLength) resHeaders["content-length"] = contentLength;
+
+    const contentRange = response.headers.get("content-range");
+    if (contentRange) resHeaders["content-range"] = contentRange;
+
+    if (download) {
+      resHeaders["content-disposition"] = `attachment; filename="${filename}"`;
+    }
+
+    res.writeHead(response.status, resHeaders);
+    
+    if (response.body) {
+      const source = Readable.fromWeb ? Readable.fromWeb(response.body) : response.body;
+      await pipeline(source, res);
+    } else {
+      res.end();
+    }
+  } catch (error) {
+    sendJson(res, 500, { error: error.message });
   }
 }
 

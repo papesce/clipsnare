@@ -20,6 +20,7 @@ let lastResultText = "No URL scanned yet.";
 const FRAME_STEP_SECONDS = 1 / 30;
 const MIN_VIDEO_HEIGHT = 480;
 updateBookmarkletLink();
+fetchVersion();
 
 bannerToggle.addEventListener("click", () => {
   const shouldMinimize = !app.classList.contains("banner-minimized");
@@ -164,9 +165,11 @@ function renderLinks(links) {
     const toggleUrl = item.querySelector(".toggle-url");
     const copy = item.querySelector(".copy-one");
     const open = item.querySelector(".open-one");
+    const download = item.querySelector(".download-one");
     const layoutToggle = item.querySelector(".toggle-layout");
 
-    video.src = link.url;
+    const proxyUrl = `/api/proxy?url=${encodeURIComponent(link.url)}`;
+    video.src = proxyUrl;
     article.dataset.playable = "unknown";
     article.dataset.quality = "unknown";
     setupVideoControls(item, video);
@@ -190,6 +193,7 @@ function renderLinks(links) {
       }, 1400);
     });
     open.href = link.url;
+    download.href = `${proxyUrl}&download=1&filename=${encodeURIComponent(link.filename || "video.mp4")}`;
     setupLayoutToggle(article, layoutToggle);
 
     linksContainer.append(item);
@@ -588,4 +592,17 @@ async function copyText(text) {
   textarea.select();
   document.execCommand("copy");
   textarea.remove();
+}
+
+async function fetchVersion() {
+  try {
+    const response = await fetch("/api/version");
+    const { version } = await response.json();
+    for (const el of document.querySelectorAll(".app-version")) {
+      el.textContent = `v${version}`;
+      el.hidden = false;
+    }
+  } catch (err) {
+    console.error("Failed to fetch version:", err);
+  }
 }
