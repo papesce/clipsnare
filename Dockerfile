@@ -9,6 +9,7 @@ COPY package.json ./
 RUN npm install --omit=dev
 
 COPY server.mjs ./
+COPY config.mjs ./
 COPY providers ./providers
 COPY public ./public
 
