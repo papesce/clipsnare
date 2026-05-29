@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
-import { findProvider } from "./providers/index.mjs";
+import { findProvider, providers } from "./providers/index.mjs";
 import { config } from "./config.mjs";
 
 const HOST = process.env.HOST || (process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1");
@@ -88,10 +88,13 @@ async function handleExtract(requestUrl, res) {
 
   if (isMp4Url(targetUrl.href)) {
     const directLink = buildVideoLink(targetUrl.href);
-    const provider = findProvider(targetUrl);
-    const links = provider?.afterExtract
-      ? await provider.afterExtract([directLink], targetUrl.href)
-      : [directLink];
+    let links = [directLink];
+
+    for (const provider of providers) {
+      if (provider.afterExtract) {
+        links = await provider.afterExtract(links, targetUrl.href);
+      }
+    }
 
     sendJson(res, 200, {
       sourceUrl: targetUrl.href,
@@ -107,10 +110,13 @@ async function handleExtract(requestUrl, res) {
     ? await extractWithBrowser(targetUrl)
     : await extractWithFetch(targetUrl);
 
-  const provider = findProvider(targetUrl);
-  const links = provider?.afterExtract
-    ? await provider.afterExtract(result.links, targetUrl.href)
-    : result.links;
+  let links = result.links;
+
+  for (const provider of providers) {
+    if (provider.afterExtract) {
+      links = await provider.afterExtract(links, targetUrl.href);
+    }
+  }
 
   sendJson(res, 200, {
     sourceUrl: targetUrl.href,
@@ -149,6 +155,13 @@ async function extractWithFetch(targetUrl) {
 
       for (const link of links) {
         collected.set(link.url, link);
+
+        // Follow provider links for recursion (if not a direct MP4)
+        if (scanned.size < 10 && !isMp4Url(link.url)) {
+          if (!scanned.has(link.url) && findProvider(new URL(link.url))) {
+            candidates.push(link.url);
+          }
+        }
       }
 
       if (scanned.size < 10) { // Limit recursion
@@ -433,12 +446,13 @@ function addMp4Reference(collected, value, baseUrl) {
 
 function findPatternLinks(text, baseUrl) {
   const collected = new Set();
-  const provider = findProvider(new URL(baseUrl));
 
-  for (const pattern of provider?.extractPatterns || []) {
-    const matches = text.matchAll(pattern.regex);
-    for (const match of matches) {
-      collected.add(pattern.template(match));
+  for (const provider of providers) {
+    for (const pattern of provider?.extractPatterns || []) {
+      const matches = text.matchAll(pattern.regex);
+      for (const match of matches) {
+        collected.add(pattern.template(match));
+      }
     }
   }
 

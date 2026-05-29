@@ -26,7 +26,7 @@ export default {
     {
       // Match ID from watch or iframe URLs
       regex: new RegExp(`${BRAND_DOMAIN.replace(".", "\\.")}\\/(?:watch|ifr)\\/([a-z0-9]+)`, "gi"),
-      template: (match) => `https://${BRAND_MEDIA_DOMAIN}/${match[1]}.mp4`
+      template: (match) => `https://www.${BRAND_DOMAIN}/watch/${match[1]}`
     },
     {
       // Match direct media URLs
